@@ -1,0 +1,29 @@
+# Infraestructura Base - IncaApp
+
+Repositorio de Infraestructura como Código (IaC) desarrollado en Terraform para desplegar la arquitectura base de **IncaApp** en AWS. El proyecto está diseñado bajo un enfoque modular y preparado para operar en dos entornos independientes: `dev` y `prod`.
+
+La infraestructura aprovisiona la red base, una instancia EC2 preparada para ejecutar contenedores Docker, una base de datos PostgreSQL privada en RDS y un bucket S3 con acceso restringido mediante IAM.
+
+## Estructura del Proyecto
+
+La configuración separa los entornos de los módulos reutilizables. Ambos entornos comparten prácticamente el mismo `main.tf` y controlan sus diferencias operativas exclusivamente a través de `terraform.tfvars`.
+
+```text
+IncaApp/
+├── envs/
+│   ├── dev/
+│   │   ├── backend.tf
+│   │   ├── main.tf
+│   │   ├── outputs.tf
+│   │   ├── providers.tf
+│   │   ├── terraform.tfvars
+│   │   ├── variables.tf
+│   │   └── versions.tf
+│   └── prod/
+│       └── ... (misma estructura)
+└── modules/
+    ├── network/
+    ├── compute/
+    ├── database/
+    ├── storage/
+    └── IAM/
