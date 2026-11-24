@@ -1,5 +1,5 @@
 output "contraseña_IncaApp" {
-  value = random_password.contraseña_IncaApp
+  value     = random_password.contraseña_IncaApp
   sensitive = true
 }
 
