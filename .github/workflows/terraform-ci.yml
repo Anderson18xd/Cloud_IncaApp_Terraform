@@ -1,0 +1,34 @@
+name: CI Basico Terraform
+
+on:
+  push:
+    branches: ["main", "feat/*"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  validar-codigo:
+    name: Formato y Validacion
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Descargar el codigo del repo
+        uses: actions/checkout@v4
+
+      - name: 2. Instalar Terraform en el robot
+        uses: hashicorp/setup-terraform@v3
+
+      - name: 3. Revisar formato (fmt)
+        run: terraform fmt -check -recursive
+
+      - name: 4. Inicializar y validar entorno dev
+        working-directory: envs/dev
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: 5. Inicializar y validar entorno prod
+        working-directory: envs/prod
+        run: |
+          terraform init -backend=false
+          terraform validate

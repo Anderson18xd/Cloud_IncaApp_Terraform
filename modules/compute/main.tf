@@ -8,7 +8,7 @@ data "aws_ami" "id_ami" {
 }
 
 resource "aws_security_group" "web" {
-  name = "web-sg-${var.environment}"
+  name   = "web-sg-${var.environment}"
   vpc_id = var.vpc_id
   dynamic "ingress" {
     for_each = var.ingress_ports
@@ -36,8 +36,8 @@ resource "aws_instance" "app" {
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.web.id]
   iam_instance_profile   = var.instance_profile_name
-  user_data = file("${path.module}/user_data.sh")
-  tags = merge(var.tags_comunes, { Name = "app-ec2-${var.environment}" })
+  user_data              = file("${path.module}/user_data.sh")
+  tags                   = merge(var.tags_comunes, { Name = "app-ec2-${var.environment}" })
   lifecycle {
     ignore_changes = [ami]
   }
