@@ -1,4 +1,4 @@
-name: CI Terraform con OIDC
+name: CI Terraform con OIDC_
 
 on:
   push:
