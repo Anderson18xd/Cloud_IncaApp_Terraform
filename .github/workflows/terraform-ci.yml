@@ -23,7 +23,7 @@ jobs:
       - name: 2. Autenticar contra AWS via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::arn:aws:iam::102798329073:role/github-actions-incaapp-role:role/github-actions-incaapp-role
+          role-to-assume: arn:aws:iam::102798329073:role/github-actions-incaapp-role
           aws-region: us-east-1
 
       - name: 3. Instalar Terraform
