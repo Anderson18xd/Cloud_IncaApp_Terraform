@@ -1,4 +1,4 @@
-name: CI Basico Terraform
+name: CI Terraform con OIDC_
 
 on:
   push:
@@ -6,29 +6,38 @@ on:
   pull_request:
     branches: ["main"]
 
+# OBLIGATORIO para que GitHub pueda generar el token temporal OIDC
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
-  validar-codigo:
-    name: Formato y Validacion
+  plan-dev:
+    name: Validar y Plan (dev)
     runs-on: ubuntu-latest
 
     steps:
-      - name: 1. Descargar el codigo del repo
+      - name: 1. Descargar codigo
         uses: actions/checkout@v4
+      - name: 1.5. Debug OIDC (ver iss, aud y sub)
+        run: |
+          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
+          python3 -c "import sys, json, base64; p = sys.argv[1].split('.')[1]; p += '=' * (-len(p) % 4); d = json.loads(base64.urlsafe_b64decode(p)); print(json.dumps({k: d.get(k) for k in ['iss', 'aud', 'sub']}, indent=2))" "$TOKEN"
+      - name: 2. Autenticar contra AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::102798329073:role/github-actions-incaapp-role
+          aws-region: us-east-1
 
-      - name: 2. Instalar Terraform en el robot
+      - name: 3. Instalar Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: 3. Revisar formato (fmt)
+      - name: 4. Revisar formato
         run: terraform fmt -check -recursive
 
-      - name: 4. Inicializar y validar entorno dev
+      - name: 5. Init, Validate y Plan en dev
         working-directory: envs/dev
         run: |
-          terraform init -backend=false
+          terraform init
           terraform validate
-
-      - name: 5. Inicializar y validar entorno prod
-        working-directory: envs/prod
-        run: |
-          terraform init -backend=false
-          terraform validate
+          terraform plan -no-color
