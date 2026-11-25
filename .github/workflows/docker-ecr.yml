@@ -1,0 +1,58 @@
+name: CI/CD Docker a AWS ECR
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "app/**"
+      - ".github/workflows/docker-ecr.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-scan-push:
+    name: Build, Scan (Trivy) y Push a ECR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: 2. Autenticar contra AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::102798329073:role/github-actions-incaapp-role
+          aws-region: us-east-1
+
+      - name: 3. Iniciar sesion en Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 4. Construir imagen Docker localmente
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: incaapp-api
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./app
+
+      - name: 5. Escanear imagen Docker con Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          version: "latest"
+          scan-type: "image"
+          image-ref: "${{ steps.login-ecr.outputs.registry }}/incaapp-api:${{ github.sha }}"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: 6. Subir imagen aprobada a AWS ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: incaapp-api
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest

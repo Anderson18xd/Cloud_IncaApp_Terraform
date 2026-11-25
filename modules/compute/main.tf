@@ -57,3 +57,21 @@ resource "aws_instance" "app" {
     ignore_changes = [ami]
   }
 }
+
+resource "aws_cloudwatch_metric_alarm" "cpu_alta" {
+  alarm_name          = "cpu-alta-ec2-${var.environment}"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = 120 # Evalúa cada 2 minutos
+  statistic           = "Average"
+  threshold           = 80  # Dispara si el promedio supera el 80%
+  alarm_description   = "Alerta cuando el CPU de la instancia EC2 supera el 80%"
+
+  dimensions = {
+    InstanceId = aws_instance.app.id
+  }
+
+  tags = var.tags_comunes
+}
