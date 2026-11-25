@@ -25,6 +25,7 @@ resource "aws_db_instance" "rds_IncaApp" {
   engine_version         = "16.3"
   instance_class         = "db.t3.micro"
   allocated_storage      = 20
+  storage_encrypted      = true
   db_name                = var.db_name
   username               = var.db_username
   password               = random_password.contraseña_IncaApp.result
@@ -33,5 +34,5 @@ resource "aws_db_instance" "rds_IncaApp" {
   publicly_accessible    = false
   skip_final_snapshot    = true
   tags                   = var.tags_comunes
-  #Se pondia lifecycle { prevent_destroy = true} para evitar borrar
+  # Se pondria lifecycle { prevent_destroy = true } para evitar borrar
 }

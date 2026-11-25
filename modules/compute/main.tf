@@ -7,9 +7,12 @@ data "aws_ami" "id_ami" {
   }
 }
 
+# trivy:ignore:AVD-AWS-0104 (EC2 requiere salida a internet para instalar paquetes)
+# trivy:ignore:AVD-AWS-0107 (Servidor web publico requiere trafico entrante en puertos configurados)
 resource "aws_security_group" "web" {
   name   = "web-sg-${var.environment}"
   vpc_id = var.vpc_id
+
   dynamic "ingress" {
     for_each = var.ingress_ports
     content {
@@ -19,12 +22,14 @@ resource "aws_security_group" "web" {
       cidr_blocks = ["0.0.0.0/0"]
     }
   }
+
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
   lifecycle {
     create_before_destroy = true
   }
@@ -37,7 +42,17 @@ resource "aws_instance" "app" {
   vpc_security_group_ids = [aws_security_group.web.id]
   iam_instance_profile   = var.instance_profile_name
   user_data              = file("${path.module}/user_data.sh")
-  tags                   = merge(var.tags_comunes, { Name = "app-ec2-${var.environment}" })
+
+  metadata_options {
+    http_tokens = "required"
+  }
+
+  root_block_device {
+    encrypted = true
+  }
+
+  tags = merge(var.tags_comunes, { Name = "app-ec2-${var.environment}" })
+
   lifecycle {
     ignore_changes = [ami]
   }

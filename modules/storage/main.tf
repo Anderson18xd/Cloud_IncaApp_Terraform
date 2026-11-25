@@ -1,3 +1,4 @@
+# trivy:ignore:AVD-AWS-0132 (Se usa encriptacion por defecto de AWS S3 para evitar costo de KMS en entorno de practica)
 resource "aws_s3_bucket" "s3_IncaApp" {
   bucket = var.bucket_name
   tags   = merge(var.common_tags, { Name = var.bucket_name })

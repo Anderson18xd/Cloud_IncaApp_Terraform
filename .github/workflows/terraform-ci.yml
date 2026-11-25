@@ -1,4 +1,4 @@
-name: CI Terraform con OIDC_
+name: CI/CD Terraform IncaApp
 
 on:
   push:
@@ -6,38 +6,101 @@ on:
   pull_request:
     branches: ["main"]
 
-# OBLIGATORIO para que GitHub pueda generar el token temporal OIDC
 permissions:
   id-token: write
   contents: read
+  pull-requests: write # Necesario para comentar el plan en el PR
 
 jobs:
-  plan-dev:
-    name: Validar y Plan (dev)
+  ci-dev:
+    name: 1. Calidad, Seguridad y Plan (dev)
     runs-on: ubuntu-latest
 
     steps:
-      - name: 1. Descargar codigo
+      - name: Descargar codigo
         uses: actions/checkout@v4
-      - name: 1.5. Debug OIDC (ver iss, aud y sub)
+
+      - name: Instalar Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Revisar formato (fmt)
+        run: terraform fmt -check -recursive
+
+      - name: Instalar TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: Ejecutar TFLint
         run: |
-          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
-          python3 -c "import sys, json, base64; p = sys.argv[1].split('.')[1]; p += '=' * (-len(p) % 4); d = json.loads(base64.urlsafe_b64decode(p)); print(json.dumps({k: d.get(k) for k in ['iss', 'aud', 'sub']}, indent=2))" "$TOKEN"
-      - name: 2. Autenticar contra AWS via OIDC
+          tflint --init
+          tflint --recursive
+
+      - name: Escaneo de seguridad con Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "config"
+          scan-ref: "."
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+
+      - name: Autenticar contra AWS via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::102798329073:role/github-actions-incaapp-role
           aws-region: us-east-1
 
-      - name: 3. Instalar Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: 4. Revisar formato
-        run: terraform fmt -check -recursive
-
-      - name: 5. Init, Validate y Plan en dev
+      - name: Init, Validate y Plan en dev
+        id: plan
         working-directory: envs/dev
         run: |
           terraform init
           terraform validate
-          terraform plan -no-color
+          terraform plan -no-color -out=tfplan
+          terraform show -no-color tfplan > plan.txt
+
+      - name: Comentar Plan en el Pull Request
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('envs/dev/plan.txt', 'utf8');
+            const output = `#### Terraform Plan (\`dev\`) 📖
+            <details><summary>Haz clic para ver los 24 recursos a desplegar</summary>
+
+            \`\`\`hcl
+            ${plan.slice(0, 60000)}
+            \`\`\`
+
+            </details>`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+  deploy-dev:
+    name: 2. Desplegar Infraestructura (apply dev)
+    needs: ci-dev
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: develop
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Autenticar contra AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::102798329073:role/github-actions-incaapp-role
+          aws-region: us-east-1
+
+      - name: Instalar Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Init y Apply en dev
+        working-directory: envs/dev
+        run: |
+          terraform init
+          terraform apply -auto-approve
