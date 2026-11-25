@@ -1,4 +1,4 @@
-# Infraestructura Base - IncaApp
+# Infraestructura Base -- IncaApp
 
 Repositorio de Infraestructura como Código (IaC) desarrollado en Terraform para desplegar la arquitectura base de **IncaApp** en AWS. El proyecto está diseñado bajo un enfoque modular y preparado para operar en dos entornos independientes: `dev` y `prod`.
 
