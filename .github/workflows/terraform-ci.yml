@@ -37,6 +37,7 @@ jobs:
       - name: Escaneo de seguridad con Trivy
         uses: aquasecurity/trivy-action@master
         with:
+          version: "latest"
           scan-type: "config"
           scan-ref: "."
           severity: "CRITICAL,HIGH"
