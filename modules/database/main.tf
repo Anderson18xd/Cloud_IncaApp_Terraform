@@ -30,6 +30,7 @@ resource "aws_db_instance" "rds_IncaApp" {
   password               = random_password.contraseña_IncaApp.result
   db_subnet_group_name   = aws_db_subnet_group.subnets_db_IncaApp.name
   vpc_security_group_ids = [aws_security_group.sg_db_IncaApp.id]
+  storage_encrypted      = true
   publicly_accessible    = false
   skip_final_snapshot    = true
   tags                   = var.tags_comunes
