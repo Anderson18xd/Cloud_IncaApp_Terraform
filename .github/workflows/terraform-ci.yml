@@ -1,4 +1,4 @@
-name: CI Terraform Pro (TFLint + Trivy + OIDC)
+name: CI/CD Terraform IncaApp
 
 on:
   push:
@@ -9,46 +9,98 @@ on:
 permissions:
   id-token: write
   contents: read
+  pull-requests: write # Necesario para comentar el plan en el PR
 
 jobs:
   ci-dev:
-    name: Calidad, Seguridad y Plan (dev)
+    name: 1. Calidad, Seguridad y Plan (dev)
     runs-on: ubuntu-latest
 
     steps:
-      - name: 1. Descargar codigo
+      - name: Descargar codigo
         uses: actions/checkout@v4
 
-      - name: 2. Instalar Terraform
+      - name: Instalar Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: 3. Revisar formato (fmt)
+      - name: Revisar formato (fmt)
         run: terraform fmt -check -recursive
 
-      - name: 4. Instalar y correr TFLint (buenas practicas)
+      - name: Instalar TFLint
         uses: terraform-linters/setup-tflint@v4
-      - name: Ejecutar TFLint en todo el repo
+
+      - name: Ejecutar TFLint
         run: |
           tflint --init
           tflint --recursive
 
-      - name: 5. Escaneo de seguridad con Trivy
+      - name: Escaneo de seguridad con Trivy
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: "config"
           scan-ref: "."
           severity: "CRITICAL,HIGH"
           exit-code: "1"
-          
-      - name: 6. Autenticar contra AWS via OIDC
+
+      - name: Autenticar contra AWS via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::102798329073:role/github-actions-incaapp-role
           aws-region: us-east-1
 
-      - name: 7. Init, Validate y Plan en dev
+      - name: Init, Validate y Plan en dev
+        id: plan
         working-directory: envs/dev
         run: |
           terraform init
           terraform validate
-          terraform plan -no-color
+          terraform plan -no-color -out=tfplan
+          terraform show -no-color tfplan > plan.txt
+
+      - name: Comentar Plan en el Pull Request
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('envs/dev/plan.txt', 'utf8');
+            const output = `#### Terraform Plan (\`dev\`) 📖
+            <details><summary>Haz clic para ver los 24 recursos a desplegar</summary>
+
+            \`\`\`hcl
+            ${plan.slice(0, 60000)}
+            \`\`\`
+
+            </details>`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+  deploy-dev:
+    name: 2. Desplegar Infraestructura (apply dev)
+    needs: ci-dev
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: develop
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Autenticar contra AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::102798329073:role/github-actions-incaapp-role
+          aws-region: us-east-1
+
+      - name: Instalar Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Init y Apply en dev
+        working-directory: envs/dev
+        run: |
+          terraform init
+          terraform apply -auto-approve
